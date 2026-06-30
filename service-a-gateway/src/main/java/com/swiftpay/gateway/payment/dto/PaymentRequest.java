@@ -4,7 +4,7 @@ import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
 import java.util.UUID;
 
-// Incoming POST /v1/payments body. transactionId is optional: provide it to make retries idempotent; generated if absent.
+// Incoming POST /v1/payments body. transactionId is optional: provide it to make retries idempotent.
 public record PaymentRequest(
         UUID transactionId,
         @NotNull Long senderId,

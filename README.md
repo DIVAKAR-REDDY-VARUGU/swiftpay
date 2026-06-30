@@ -18,7 +18,6 @@ LEDGER SERVICE (consumer, :8082)
    7. DB TRANSACTION: debit sender WHERE balance ≥ amount  +  credit receiver   (atomic, race-safe)
    8. Status → COMPLETED, or FAILED("insufficient funds") if the debit can't apply
    9. Publish "PaymentCompleted" / "PaymentFailed" → Kafka (topic: payments.completed)
-   GET /v1/users/{id}/transactions  — transaction history
 
 Infrastructure:  PostgreSQL · Apache Kafka (KRaft) · Redis
 ```
@@ -66,23 +65,27 @@ curl -i -X POST http://localhost:8081/v1/payments \
   -d '{"senderId":1,"receiverId":2,"amount":100.00,"currency":"USD"}'
 #  → 202 Accepted { transactionId, PENDING }   (settles to COMPLETED via the ledger)
 
-# check balances and history
-curl http://localhost:8082/v1/accounts/1            # Alice
-curl http://localhost:8082/v1/users/1/transactions  # history
+# check balances and history (all reads are served by the gateway)
+curl http://localhost:8081/v1/accounts/1            # Alice
+curl http://localhost:8081/v1/users/1/transactions  # history
 ```
 
 ## API
+The **Gateway** is the single public API. The **Ledger** runs as a background Kafka consumer and exposes only a health check.
+
 **Gateway** — Swagger: http://localhost:8081/swagger-ui.html
 | Method | Path | Description |
 |---|---|---|
 | `POST` | `/v1/payments` | Initiate a payment (idempotent, returns `202 PENDING`) |
 | `GET`  | `/v1/payments/{id}` | Get a transaction's status |
+| `GET`  | `/v1/users/{id}/transactions` | A user's transaction history |
+| `GET`  | `/v1/accounts` | All accounts with balances |
+| `GET`  | `/v1/accounts/{id}` | One account's balance |
 
 **Ledger** — Swagger: http://localhost:8082/swagger-ui.html
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/v1/users/{id}/transactions` | A user's transaction history |
-| `GET` | `/v1/accounts/{id}` | Account balance |
+| `GET` | `/health` | Service health |
 
 ## Configuration
 | Service | Host port |

@@ -25,7 +25,7 @@ spring:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
-        spring.json.value.default.type: com.swiftpay.ledger.event.PaymentInitiatedEvent  # always deserialize to OUR record
+        spring.json.value.default.type: com.swiftpay.ledger.settlement.event.PaymentInitiatedEvent  # always deserialize to OUR record
         spring.json.use.type.headers: false                                              # ignore the producer's class name
         spring.json.trusted.packages: "*"
     producer:
@@ -46,7 +46,7 @@ app:
   kafka:
     topics:
       payment-initiated: payments.initiated
-      payment-completed: payments.completed
+      payment-completed: payments.completed   # no consumer yet - intentional hook for future services (notifications/analytics)
 
 logging:
   level:

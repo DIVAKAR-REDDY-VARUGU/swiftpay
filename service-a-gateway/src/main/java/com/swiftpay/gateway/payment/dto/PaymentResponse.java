@@ -1,6 +1,6 @@
 package com.swiftpay.gateway.payment.dto;
 
-import com.swiftpay.gateway.payment.TransactionStatus;
+import com.swiftpay.gateway.entity.TransactionStatus;
 import java.util.UUID;
 
 // What the client gets back from the gateway (immediately, before the ledger settles).
