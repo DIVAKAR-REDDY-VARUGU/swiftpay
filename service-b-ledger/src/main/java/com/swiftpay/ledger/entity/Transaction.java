@@ -3,7 +3,6 @@ package com.swiftpay.ledger.entity;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.UUID;
 
 // The "transactions" table. Service B reads the PENDING row (created by the gateway) and settles it.
 @Entity
@@ -11,7 +10,7 @@ import java.util.UUID;
 public class Transaction {
 
     @Id
-    private UUID id;
+    private String id;
 
     @Column(name = "sender_id")
     private Long senderId;
@@ -48,7 +47,7 @@ public class Transaction {
         this.updatedAt = Instant.now();
     }
 
-    public UUID getId() { return id; }
+    public String getId() { return id; }
     public Long getSenderId() { return senderId; }
     public Long getReceiverId() { return receiverId; }
     public BigDecimal getAmount() { return amount; }

@@ -3,15 +3,14 @@ package com.swiftpay.gateway.entity;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.UUID;
 
-// Maps the "transactions" table. The id (UUID) is the transaction_id AND the idempotency key.
+// Maps the "transactions" table. The id is the transaction_id AND the idempotency key (a client-supplied string).
 @Entity
 @Table(name = "transactions")
 public class Transaction {
 
     @Id
-    private UUID id;
+    private String id;
 
     @Column(name = "sender_id")
     private Long senderId;
@@ -36,7 +35,7 @@ public class Transaction {
 
     protected Transaction() {}
 
-    public Transaction(UUID id, Long senderId, Long receiverId, BigDecimal amount, String currency, TransactionStatus status) {
+    public Transaction(String id, Long senderId, Long receiverId, BigDecimal amount, String currency, TransactionStatus status) {
         this.id = id;
         this.senderId = senderId;
         this.receiverId = receiverId;
@@ -47,7 +46,7 @@ public class Transaction {
         this.updatedAt = Instant.now();
     }
 
-    public UUID getId() { return id; }
+    public String getId() { return id; }
     public Long getSenderId() { return senderId; }
     public Long getReceiverId() { return receiverId; }
     public BigDecimal getAmount() { return amount; }

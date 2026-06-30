@@ -13,6 +13,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 // Settles a payment: atomic debit/credit, status update, outcome event — all in ONE DB transaction.
 @Service
@@ -35,15 +37,25 @@ public class LedgerService {
 
     @Transactional
     public void settle(PaymentInitiatedEvent e) {
-        Transaction tx = txRepo.findById(e.transactionId()).orElse(null);
-        if (tx == null) {
-            log.warn("No transaction row for {} - ignoring", e.transactionId());
+        // Lock the tx row (SELECT ... FOR UPDATE). The gateway publishes only AFTER its PENDING row is committed,
+        // so the row should be here; if a redelivery still beats the commit (rare), throw -> Kafka redelivers.
+        Transaction tx = txRepo.findByIdForUpdate(e.transactionId()).orElseThrow(() ->
+                new IllegalStateException("transaction row not visible yet for " + e.transactionId() + " - will retry"));
+
+        // IDEMPOTENCY: only a PENDING tx is settled. A redelivery of an already-settled one is a no-op.
+        // The row lock above means a concurrent duplicate waits here and then sees a non-PENDING status.
+        if (tx.getStatus() != TransactionStatus.PENDING) {
+            log.info("Idempotent skip: txn {} already {}", tx.getId(), tx.getStatus());
             return;
         }
 
-        // IDEMPOTENCY: Kafka is at-least-once, so the same event may arrive twice. Only settle a PENDING one.
-        if (tx.getStatus() != TransactionStatus.PENDING) {
-            log.info("Idempotent skip: txn {} already {}", tx.getId(), tx.getStatus());
+        // The receiver must exist before we move any money. (The gateway checks too, but only against a Redis
+        // cache, which isn't authoritative — so we must not debit the sender unless we can credit the receiver.)
+        if (!accounts.existsById(e.receiverId())) {
+            tx.markFailed("receiver account not found");
+            txRepo.save(tx);
+            publisher.publishFailed(new PaymentFailedEvent(tx.getId(), "receiver account not found"));
+            log.warn("FAILED txn {}: receiver {} not found", tx.getId(), e.receiverId());
             return;
         }
 
@@ -57,13 +69,27 @@ public class LedgerService {
             return;
         }
 
-        accounts.credit(e.receiverId(), e.amount());
+        // Credit the receiver. If 0 rows changed (receiver vanished after the check above), abort the WHOLE
+        // transaction so the debit rolls back too — never debit without a matching credit (double-entry).
+        int credited = accounts.credit(e.receiverId(), e.amount());
+        if (credited == 0) {
+            throw new IllegalStateException("credit failed for receiver " + e.receiverId() + " - rolling back debit");
+        }
+
         tx.markCompleted();
         txRepo.save(tx);
 
-        // invalidate the gateway's cached balances so the next read is fresh (cache-aside eviction)
-        redis.delete("balance:" + e.senderId());
-        redis.delete("balance:" + e.receiverId());
+        // Evict the gateway's cached balances AFTER commit, so a concurrent read during the commit window
+        // can't repopulate Redis with the stale (pre-debit) value.
+        String senderKey = "balance:" + e.senderId();
+        String receiverKey = "balance:" + e.receiverId();
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                redis.delete(senderKey);
+                redis.delete(receiverKey);
+            }
+        });
 
         publisher.publishCompleted(new PaymentCompletedEvent(tx.getId(), e.senderId(), e.receiverId(), e.amount()));
         log.info("COMPLETED txn {}: {} -> {} amount {}", tx.getId(), e.senderId(), e.receiverId(), e.amount());

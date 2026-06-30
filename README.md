@@ -62,7 +62,7 @@ Then:
 # initiate a payment: Alice (1) pays Bob (2) $100
 curl -i -X POST http://localhost:8081/v1/payments \
   -H "Content-Type: application/json" \
-  -d '{"senderId":1,"receiverId":2,"amount":100.00,"currency":"USD"}'
+  -d '{"senderId":1,"receiverId":2,"amount":100.00,"currency":"INR"}'
 #  → 202 Accepted { transactionId, PENDING }   (settles to COMPLETED via the ledger)
 
 # check balances and history (all reads are served by the gateway)

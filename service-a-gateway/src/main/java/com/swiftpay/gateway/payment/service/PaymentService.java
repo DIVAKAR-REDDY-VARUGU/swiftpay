@@ -15,6 +15,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -42,7 +44,8 @@ public class PaymentService {
 
     @Transactional
     public PaymentResponse initiate(PaymentRequest req) {
-        UUID txnId = req.transactionId() != null ? req.transactionId() : UUID.randomUUID();
+        // transactionId IS the idempotency key. Client-supplied (e.g. "Trans-3-1_1_100"), or we generate one.
+        String txnId = req.transactionId() != null ? req.transactionId() : UUID.randomUUID().toString();
 
         // 1a. Durable idempotency backstop — already-processed request returns its existing result.
         var existing = txRepo.findById(txnId);
@@ -53,7 +56,7 @@ public class PaymentService {
         }
 
         // 1b. Fast Redis idempotency — atomic SET NX EX (24h window). Loser is a duplicate.
-        if (!idempotency.claim(txnId.toString())) {
+        if (!idempotency.claim(txnId)) {
             log.info("Idempotent hit (redis) txnId={}", txnId);
             return new PaymentResponse(txnId, TransactionStatus.PENDING, "Duplicate request - already received");
         }
@@ -76,16 +79,23 @@ public class PaymentService {
         txRepo.save(tx);
         log.info("Saved PENDING txnId={} {}->{} {} {}", txnId, req.senderId(), req.receiverId(), req.amount(), req.currency());
 
-        // 4. Emit event — the ledger settles asynchronously
-        publisher.publishInitiated(new PaymentInitiatedEvent(
-                txnId, req.senderId(), req.receiverId(), req.amount(), req.currency()));
+        // 4. Emit event — but ONLY AFTER this transaction commits, so the ledger always finds the PENDING row.
+        //    (Publishing inside the tx races the consumer: it can read before our commit -> "no transaction row" -> stuck PENDING.)
+        PaymentInitiatedEvent event = new PaymentInitiatedEvent(
+                txnId, req.senderId(), req.receiverId(), req.amount(), req.currency());
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                publisher.publishInitiated(event);
+            }
+        });
 
         // 5. Respond (settlement is async)
         return new PaymentResponse(txnId, TransactionStatus.PENDING, "Payment accepted and is being processed");
     }
 
     // read: current status of one transaction
-    public Transaction getStatus(UUID id) {
+    public Transaction getStatus(String id) {
         return txRepo.findById(id)
                 .orElseThrow(() -> new NotFoundException("transaction " + id + " not found"));
     }

@@ -23,7 +23,15 @@ public class PaymentEventPublisher {
     }
 
     public void publishInitiated(PaymentInitiatedEvent event) {
-        kafka.send(initiatedTopic, event.transactionId().toString(), event);
-        log.info("Emitted PaymentInitiated topic={} txnId={}", initiatedTopic, event.transactionId());
+        // This runs AFTER the DB commit, so the PENDING row already exists. If the send fails here, settlement
+        // won't be triggered until reconciled — so make a lost publish loud rather than swallowing it.
+        kafka.send(initiatedTopic, event.transactionId(), event).whenComplete((result, ex) -> {
+            if (ex != null) {
+                log.error("FAILED to publish PaymentInitiated txnId={} - settlement will not trigger until reconciled",
+                        event.transactionId(), ex);
+            } else {
+                log.info("Emitted PaymentInitiated topic={} txnId={}", initiatedTopic, event.transactionId());
+            }
+        });
     }
 }

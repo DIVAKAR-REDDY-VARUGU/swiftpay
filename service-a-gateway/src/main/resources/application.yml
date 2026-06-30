@@ -22,6 +22,9 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all                       # wait for all in-sync replicas before acking (durable)
+      properties:
+        enable.idempotence: true      # no duplicate/reordered records on producer retry
 
 management:
   endpoints:

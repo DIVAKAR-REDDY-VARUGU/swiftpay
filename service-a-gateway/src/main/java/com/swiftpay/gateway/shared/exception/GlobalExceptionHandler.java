@@ -2,6 +2,7 @@ package com.swiftpay.gateway.shared.exception;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -35,6 +36,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InsufficientFundsException.class)
     public ResponseEntity<ApiError> insufficientFunds(InsufficientFundsException e) {
         return of(HttpStatus.UNPROCESSABLE_ENTITY, e.getMessage()); // 422
+    }
+
+    // malformed JSON body (e.g. wrong type, bad number) -> 400, not 500
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiError> unreadable(HttpMessageNotReadableException e) {
+        return of(HttpStatus.BAD_REQUEST, "malformed or unreadable request body");
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

@@ -10,7 +10,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.UUID;
 
 @RestController
 public class PaymentController {
@@ -29,7 +28,7 @@ public class PaymentController {
 
     // GET /v1/payments/{id} — poll the current status of a transaction.
     @GetMapping("/v1/payments/{id}")
-    public PaymentResponse status(@PathVariable UUID id) {
+    public PaymentResponse status(@PathVariable String id) {
         Transaction t = service.getStatus(id);
         return new PaymentResponse(t.getId(), t.getStatus(),
                 t.getFailureReason() != null ? t.getFailureReason() : "ok");

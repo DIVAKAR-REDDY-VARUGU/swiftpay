@@ -28,12 +28,12 @@ public class LedgerEventPublisher {
     }
 
     public void publishCompleted(PaymentCompletedEvent e) {
-        kafka.send(completedTopic, e.transactionId().toString(), e);
+        kafka.send(completedTopic, e.transactionId(), e);
         log.info("Emitted PaymentCompleted txnId={}", e.transactionId());
     }
 
     public void publishFailed(PaymentFailedEvent e) {
-        kafka.send(completedTopic, e.transactionId().toString(), e);
+        kafka.send(completedTopic, e.transactionId(), e);
         log.info("Emitted PaymentFailed txnId={} reason={}", e.transactionId(), e.reason());
     }
 }
