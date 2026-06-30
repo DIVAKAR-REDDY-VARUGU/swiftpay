@@ -83,12 +83,16 @@ public class PaymentService {
         //    (Publishing inside the tx races the consumer: it can read before our commit -> "no transaction row" -> stuck PENDING.)
         PaymentInitiatedEvent event = new PaymentInitiatedEvent(
                 txnId, req.senderId(), req.receiverId(), req.amount(), req.currency());
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                publisher.publishInitiated(event);
-            }
-        });
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    publisher.publishInitiated(event);
+                }
+            });
+        } else {
+            publisher.publishInitiated(event); // no active transaction (e.g. a unit test) — publish immediately
+        }
 
         // 5. Respond (settlement is async)
         return new PaymentResponse(txnId, TransactionStatus.PENDING, "Payment accepted and is being processed");

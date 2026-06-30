@@ -83,13 +83,18 @@ public class LedgerService {
         // can't repopulate Redis with the stale (pre-debit) value.
         String senderKey = "balance:" + e.senderId();
         String receiverKey = "balance:" + e.receiverId();
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                redis.delete(senderKey);
-                redis.delete(receiverKey);
-            }
-        });
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    redis.delete(senderKey);
+                    redis.delete(receiverKey);
+                }
+            });
+        } else {
+            redis.delete(senderKey);   // no active transaction (e.g. a unit test) — evict now
+            redis.delete(receiverKey);
+        }
 
         publisher.publishCompleted(new PaymentCompletedEvent(tx.getId(), e.senderId(), e.receiverId(), e.amount()));
         log.info("COMPLETED txn {}: {} -> {} amount {}", tx.getId(), e.senderId(), e.receiverId(), e.amount());
