@@ -1,0 +1,53 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: service-b-ledger
+  datasource:
+    url: jdbc:postgresql://localhost:5433/swiftpay   # same Postgres as the gateway (shared ledger DB)
+    username: swiftpay
+    password: swiftpay
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    show-sql: true
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: ledger-service
+      auto-offset-reset: earliest        # read events from the start (so it settles already-queued PENDING events)
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.value.default.type: com.swiftpay.ledger.event.PaymentInitiatedEvent  # always deserialize to OUR record
+        spring.json.use.type.headers: false                                              # ignore the producer's class name
+        spring.json.trusted.packages: "*"
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+app:
+  kafka:
+    topics:
+      payment-initiated: payments.initiated
+      payment-completed: payments.completed
+
+logging:
+  level:
+    com.swiftpay: DEBUG

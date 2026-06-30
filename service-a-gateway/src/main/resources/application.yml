@@ -1,0 +1,43 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: service-a-gateway
+  datasource:
+    url: jdbc:postgresql://localhost:5433/swiftpay   # 5433 = SwiftPay's Dockerised Postgres (5432 is the local one)
+    username: swiftpay
+    password: swiftpay
+  jpa:
+    hibernate:
+      ddl-auto: none          # the schema is owned by db/init.sql
+    open-in-view: false
+    show-sql: true
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+app:
+  kafka:
+    topics:
+      payment-initiated: payments.initiated
+
+logging:
+  level:
+    com.swiftpay: DEBUG

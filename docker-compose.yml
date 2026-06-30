@@ -1,0 +1,94 @@
+# SwiftPay — full stack: Postgres + Kafka (KRaft, no Zookeeper) + Redis + the two services.
+# Run:  docker compose up -d --build
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: swiftpay-postgres
+    environment:
+      POSTGRES_DB: swiftpay
+      POSTGRES_USER: swiftpay
+      POSTGRES_PASSWORD: swiftpay
+    ports:
+      - "5433:5432"          # host 5433 -> container 5432 (avoids a native PostgreSQL already on 5432)
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro   # auto-runs on first init
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U swiftpay -d swiftpay"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7
+    container_name: swiftpay-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  kafka:
+    image: confluentinc/cp-kafka:7.7.0
+    container_name: swiftpay-kafka
+    ports:
+      - "9092:9092"          # host clients connect here
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:29093"
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093,INTERNAL://0.0.0.0:29092"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://localhost:9092,INTERNAL://kafka:29092"   # localhost for host apps, kafka:29092 for containers
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "INTERNAL"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  service-a-gateway:
+    build: ./service-a-gateway
+    container_name: swiftpay-gateway
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka:    { condition: service_healthy }
+      redis:    { condition: service_healthy }
+    environment:
+      # inside the Docker network the services use the CONTAINER hostnames/ports (not localhost/5433)
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/swiftpay
+      SPRING_DATASOURCE_USERNAME: swiftpay
+      SPRING_DATASOURCE_PASSWORD: swiftpay
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_DATA_REDIS_HOST: redis
+    ports:
+      - "8081:8081"
+
+  service-b-ledger:
+    build: ./service-b-ledger
+    container_name: swiftpay-ledger
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka:    { condition: service_healthy }
+      redis:    { condition: service_healthy }
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/swiftpay
+      SPRING_DATASOURCE_USERNAME: swiftpay
+      SPRING_DATASOURCE_PASSWORD: swiftpay
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_DATA_REDIS_HOST: redis
+    ports:
+      - "8082:8082"
+
+volumes:
+  pgdata:
