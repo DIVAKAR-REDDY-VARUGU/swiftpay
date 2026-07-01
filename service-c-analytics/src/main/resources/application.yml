@@ -1,0 +1,44 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: service-c-analytics
+  datasource:
+    # analytics store is ClickHouse (not Postgres). secrets come from env vars in prod (${ENV:default}).
+    url: ${SPRING_DATASOURCE_URL:jdbc:clickhouse://localhost:8123/swiftpay}
+    driver-class-name: com.clickhouse.jdbc.ClickHouseDriver
+    username: ${SPRING_DATASOURCE_USERNAME:swiftpay}
+    password: ${SPRING_DATASOURCE_PASSWORD:swiftpay}
+    hikari:
+      connection-test-query: SELECT 1     # ClickHouse-friendly liveness check
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: analytics-service          # its OWN group -> gets its own copy of every outcome event
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.value.default.type: com.swiftpay.analytics.event.PaymentOutcomeEvent
+        spring.json.use.type.headers: false
+        spring.json.trusted.packages: "*"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+app:
+  kafka:
+    topics:
+      payment-completed: payments.completed
+
+logging:
+  level:
+    com.swiftpay: DEBUG

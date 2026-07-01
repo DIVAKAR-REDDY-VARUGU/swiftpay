@@ -4,9 +4,8 @@ import com.swiftpay.ledger.entity.Transaction;
 import com.swiftpay.ledger.entity.TransactionStatus;
 import com.swiftpay.ledger.repository.AccountRepository;
 import com.swiftpay.ledger.repository.TransactionRepository;
-import com.swiftpay.ledger.settlement.event.PaymentCompletedEvent;
-import com.swiftpay.ledger.settlement.event.PaymentFailedEvent;
 import com.swiftpay.ledger.settlement.event.PaymentInitiatedEvent;
+import com.swiftpay.ledger.settlement.event.PaymentOutcomeEvent;
 import com.swiftpay.ledger.settlement.messaging.LedgerEventPublisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,7 +53,8 @@ public class LedgerService {
         if (!accounts.existsById(e.receiverId())) {
             tx.markFailed("receiver account not found");
             txRepo.save(tx);
-            publisher.publishFailed(new PaymentFailedEvent(tx.getId(), "receiver account not found"));
+            publisher.publishOutcome(new PaymentOutcomeEvent(
+                    tx.getId(), e.senderId(), e.receiverId(), e.amount(), "FAILED", "receiver account not found"));
             log.warn("FAILED txn {}: receiver {} not found", tx.getId(), e.receiverId());
             return;
         }
@@ -64,7 +64,8 @@ public class LedgerService {
         if (debited == 0) {
             tx.markFailed("insufficient funds");
             txRepo.save(tx);
-            publisher.publishFailed(new PaymentFailedEvent(tx.getId(), "insufficient funds"));
+            publisher.publishOutcome(new PaymentOutcomeEvent(
+                    tx.getId(), e.senderId(), e.receiverId(), e.amount(), "FAILED", "insufficient funds"));
             log.warn("FAILED txn {}: insufficient funds (sender {})", tx.getId(), e.senderId());
             return;
         }
@@ -96,7 +97,8 @@ public class LedgerService {
             redis.delete(receiverKey);
         }
 
-        publisher.publishCompleted(new PaymentCompletedEvent(tx.getId(), e.senderId(), e.receiverId(), e.amount()));
+        publisher.publishOutcome(new PaymentOutcomeEvent(
+                tx.getId(), e.senderId(), e.receiverId(), e.amount(), "COMPLETED", null));
         log.info("COMPLETED txn {}: {} -> {} amount {}", tx.getId(), e.senderId(), e.receiverId(), e.amount());
     }
 }

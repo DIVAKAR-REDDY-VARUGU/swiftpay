@@ -4,9 +4,8 @@ import com.swiftpay.ledger.entity.Transaction;
 import com.swiftpay.ledger.entity.TransactionStatus;
 import com.swiftpay.ledger.repository.AccountRepository;
 import com.swiftpay.ledger.repository.TransactionRepository;
-import com.swiftpay.ledger.settlement.event.PaymentCompletedEvent;
-import com.swiftpay.ledger.settlement.event.PaymentFailedEvent;
 import com.swiftpay.ledger.settlement.event.PaymentInitiatedEvent;
+import com.swiftpay.ledger.settlement.event.PaymentOutcomeEvent;
 import com.swiftpay.ledger.settlement.messaging.LedgerEventPublisher;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -60,7 +59,7 @@ class LedgerServiceTest {
         verify(accounts).credit(2L, AMOUNT);
         verify(tx).markCompleted();
         verify(txRepo).save(tx);
-        verify(publisher).publishCompleted(any(PaymentCompletedEvent.class));
+        verify(publisher).publishOutcome(any(PaymentOutcomeEvent.class));
         verify(redis).delete("balance:1");
         verify(redis).delete("balance:2");
     }
@@ -80,7 +79,7 @@ class LedgerServiceTest {
 
         verify(tx).markFailed("insufficient funds");
         verify(accounts, never()).credit(anyLong(), any());
-        verify(publisher).publishFailed(any(PaymentFailedEvent.class));
+        verify(publisher).publishOutcome(any(PaymentOutcomeEvent.class));
     }
 
     @Test
@@ -97,7 +96,7 @@ class LedgerServiceTest {
 
         verify(tx).markFailed("receiver account not found");
         verify(accounts, never()).debit(anyLong(), any());
-        verify(publisher).publishFailed(any(PaymentFailedEvent.class));
+        verify(publisher).publishOutcome(any(PaymentOutcomeEvent.class));
     }
 
     @Test
