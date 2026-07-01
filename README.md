@@ -17,13 +17,18 @@ LEDGER SERVICE (consumer, :8082)
    6. Consume PaymentInitiated  (at-least-once → idempotent processing)
    7. DB TRANSACTION: debit sender WHERE balance ≥ amount  +  credit receiver   (atomic, race-safe)
    8. Status → COMPLETED, or FAILED("insufficient funds") if the debit can't apply
-   9. Publish "PaymentCompleted" / "PaymentFailed" → Kafka (topic: payments.completed)
+   9. Publish "PaymentOutcome" (COMPLETED / FAILED) → Kafka (topic: payments.completed)
+        │
+        ▼  Kafka
+ANALYTICS SERVICE (consumer, :8083)
+  10. Consume PaymentOutcome on its OWN consumer group  →  insert into ClickHouse (append-only)
+  11. Serve read-only analytics: GET /v1/analytics/{summary, top-senders, users/{id}}
 
-Infrastructure:  PostgreSQL · Apache Kafka (KRaft) · Redis
+Infrastructure:  PostgreSQL · Apache Kafka (KRaft) · Redis · ClickHouse
 ```
 
 ## Tech stack
-Java 21 · Spring Boot 3.3 · PostgreSQL 16 · Apache Kafka (KRaft) · Redis 7 · Spring Data JPA · Spring Kafka · Maven · Docker / Docker Compose · Swagger/OpenAPI · GitHub Actions.
+Java 21 · Spring Boot 3.3 · PostgreSQL 16 · Apache Kafka (KRaft) · Redis 7 · ClickHouse · Spring Data JPA · Spring Kafka · Maven · Docker / Docker Compose · Swagger/OpenAPI · GitHub Actions.
 
 ## Design decisions
 1. **Idempotency** — `transaction_id` is the idempotency key. A Redis `SET NX` with a 24-hour TTL is the fast guard; the Postgres primary key is the durable backstop. A duplicate request returns the original result, so client retries are safe.
@@ -31,6 +36,7 @@ Java 21 · Spring Boot 3.3 · PostgreSQL 16 · Apache Kafka (KRaft) · Redis 7 �
 3. **Atomic, race-safe transfer** — the debit is a single conditional update — `UPDATE accounts SET balance = balance - :amt WHERE id = :sender AND balance >= :amt` — inside a database transaction, backed by a `CHECK (balance >= 0)` constraint. Concurrent payments can never overdraw an account; a no-op update means insufficient funds and the transaction is marked `FAILED`.
 4. **Resilience** — the Kafka consumer is at-least-once and the processing is idempotent, so redelivery is safe. Failed messages are retried with back-off and, if still failing, routed to a dead-letter topic (`payments.initiated.DLT`) so a poison message or a temporary outage can't block the partition.
 5. **Observability & API standards** — health endpoints (`/actuator/health`), structured logging, correct HTTP status codes, standard error objects, and OpenAPI documentation (Swagger UI).
+6. **Analytics read model (CQRS)** — a third service consumes the settlement outcomes on its own Kafka consumer group and writes them to **ClickHouse**, a columnar OLAP store built for fast aggregations over append-only event streams. Transactional writes stay in Postgres; analytical reads are served from ClickHouse — separating the two workloads and demonstrating pub/sub fan-out.
 
 > The gateway and ledger share a single PostgreSQL database for the ledger. A stricter microservice design would give each service its own datastore; a shared ledger DB is a deliberate simplification for this project.
 
@@ -38,9 +44,11 @@ Java 21 · Spring Boot 3.3 · PostgreSQL 16 · Apache Kafka (KRaft) · Redis 7 �
 ```
 swiftpay/
 ├── docker-compose.yml          # Postgres + Kafka + Redis + both services
-├── db/init.sql                 # schema + seed accounts (Alice=1000, Bob=500, Carol=0)
-├── service-a-gateway/          # Transaction Gateway (REST)        :8081
-└── service-b-ledger/           # Ledger Service (Kafka consumer)    :8082
+├── db/init.sql                 # Postgres schema + seed accounts (Alice=1000, Bob=500, Carol=0)
+├── db/clickhouse-init.sql      # ClickHouse analytics table
+├── service-a-gateway/          # Transaction Gateway (REST)               :8081
+├── service-b-ledger/           # Ledger Service (Kafka consumer)          :8082
+└── service-c-analytics/        # Analytics Service (Kafka → ClickHouse)   :8083
 ```
 
 ## Getting started
@@ -87,12 +95,22 @@ The **Gateway** is the single public API. The **Ledger** runs as a background Ka
 |---|---|---|
 | `GET` | `/health` | Service health |
 
+**Analytics** — Swagger: http://localhost:8083/swagger-ui.html
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/v1/analytics/summary` | Completed/failed counts + total settled volume |
+| `GET` | `/v1/analytics/top-senders?limit=5` | Top senders by settled volume |
+| `GET` | `/v1/analytics/users/{id}` | One user's sent/received totals |
+| `GET` | `/health` | Service health |
+
 ## Configuration
 | Service | Host port |
 |---|---|
 | Transaction Gateway | 8081 |
 | Ledger Service | 8082 |
+| Analytics Service | 8083 |
 | PostgreSQL | 5433 |
+| ClickHouse | 8123 |
 | Kafka | 9092 |
 | Redis | 6379 |
 
