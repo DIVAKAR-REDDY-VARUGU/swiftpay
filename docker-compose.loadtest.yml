@@ -1,0 +1,21 @@
+# Load-test tuning override — layered on top of docker-compose.yml.
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.loadtest.yml up -d --build \
+#       postgres kafka redis service-a-gateway service-b-ledger
+# Everything here is an env/command override; the committed base config is unchanged.
+services:
+  postgres:
+    command: ["postgres", "-c", "max_connections=200"]
+
+  kafka:
+    environment:
+      KAFKA_NUM_PARTITIONS: 12          # let the ledger consume payments.initiated in parallel
+
+  service-a-gateway:
+    environment:
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "40"
+
+  service-b-ledger:
+    environment:
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "30"
+      SPRING_KAFKA_LISTENER_CONCURRENCY: "12"   # 12 partitions -> 12 settle threads (row lock keeps it safe)

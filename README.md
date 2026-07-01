@@ -115,3 +115,8 @@ The **Gateway** is the single public API. The **Ledger** runs as a background Ka
 | Redis | 6379 |
 
 The application runs in **UTC**. Services read config from environment variables when containerized (`SPRING_DATASOURCE_URL`, `SPRING_KAFKA_BOOTSTRAP_SERVERS`, `SPRING_DATA_REDIS_HOST`).
+
+## Load test & PCAP
+The system was load-tested at **250 TPS for 1,000,000 transactions** (~67 min). Result: **999,609 requests at ~250 req/s, 100% accepted, 0 failures**, and **every payment settled to `COMPLETED`** with no backlog or dead-letters. A representative network capture (API · Kafka · Postgres · Redis) is included as evidence.
+
+See [`load-test/`](load-test/) — [`REPORT.md`](load-test/REPORT.md) (results), [`run-loadtest.md`](load-test/run-loadtest.md) (how to reproduce), `k6-payments.js` / `seed-accounts.sql` / `capture.sh`, and `swiftpay-loadtest-slice.pcap.gz` (open in Wireshark).
