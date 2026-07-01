@@ -39,12 +39,17 @@
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka</artifactId>
         </dependency>
-        <!-- ClickHouse JDBC driver ('all' classifier = self-contained, bundles the http client) -->
+        <!-- ClickHouse JDBC driver + HTTP transport. Use the thin jars + explicit http-client:
+             the -all shaded jar is missing com.clickhouse.client.ClickHouseClient at runtime. -->
         <dependency>
             <groupId>com.clickhouse</groupId>
             <artifactId>clickhouse-jdbc</artifactId>
             <version>${clickhouse-jdbc.version}</version>
-            <classifier>all</classifier>
+        </dependency>
+        <dependency>
+            <groupId>com.clickhouse</groupId>
+            <artifactId>clickhouse-http-client</artifactId>
+            <version>${clickhouse-jdbc.version}</version>
         </dependency>
         <!-- Swagger / OpenAPI UI -->
         <dependency>
