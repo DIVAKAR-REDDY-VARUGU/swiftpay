@@ -9,7 +9,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.jdbc.DataSourceBuilder;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.testcontainers.containers.ClickHouseContainer;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
@@ -21,25 +22,31 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 // hits a REAL clickhouse (testcontainers) so the insert + the aggregation SQL are actually exercised.
-// skips if docker isnt reachable (like my machine); runs for real on the ci server.
+// clickhouse 24.8 rejects the default user with an empty password, so we create our own user via the
+// image's env vars and connect with it. skips if docker isnt reachable (my machine); runs on the ci server.
 @Testcontainers(disabledWithoutDocker = true)
 class PaymentEventRepositoryIntegrationTest {
 
     @Container
-    static ClickHouseContainer clickhouse =
-            new ClickHouseContainer(DockerImageName.parse("clickhouse/clickhouse-server:24.8"));
+    static GenericContainer<?> clickhouse =
+            new GenericContainer<>(DockerImageName.parse("clickhouse/clickhouse-server:24.8"))
+                    .withEnv("CLICKHOUSE_USER", "swiftpay")
+                    .withEnv("CLICKHOUSE_PASSWORD", "swiftpay")
+                    .withEnv("CLICKHOUSE_DB", "swiftpay")
+                    .withExposedPorts(8123)
+                    .waitingFor(Wait.forHttp("/ping").forPort(8123));
 
     static JdbcTemplate jdbc;
     static PaymentEventRepository repo;
 
     @BeforeAll
     static void setup() {
-        // ClickHouseContainer gives us a matching jdbc url + user + password that actually authenticate.
+        String url = "jdbc:clickhouse://" + clickhouse.getHost() + ":" + clickhouse.getMappedPort(8123) + "/swiftpay";
         DataSource ds = DataSourceBuilder.create()
                 .driverClassName("com.clickhouse.jdbc.ClickHouseDriver")
-                .url(clickhouse.getJdbcUrl())
-                .username(clickhouse.getUsername())
-                .password(clickhouse.getPassword())
+                .url(url)
+                .username("swiftpay")
+                .password("swiftpay")
                 .build();
         jdbc = new JdbcTemplate(ds);
         jdbc.execute("CREATE TABLE payment_events (" +

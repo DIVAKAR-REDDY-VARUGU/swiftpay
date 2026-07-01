@@ -60,6 +60,10 @@ services:
   clickhouse:
     image: clickhouse/clickhouse-server:24.8
     container_name: swiftpay-clickhouse
+    environment:
+      CLICKHOUSE_USER: swiftpay
+      CLICKHOUSE_PASSWORD: swiftpay
+      CLICKHOUSE_DB: swiftpay
     ports:
       - "8123:8123"          # http interface (used by the JDBC driver)
     volumes:
@@ -115,6 +119,8 @@ services:
     environment:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SPRING_DATASOURCE_URL: jdbc:clickhouse://clickhouse:8123/swiftpay
+      SPRING_DATASOURCE_USERNAME: swiftpay
+      SPRING_DATASOURCE_PASSWORD: swiftpay
     ports:
       - "8083:8083"
 

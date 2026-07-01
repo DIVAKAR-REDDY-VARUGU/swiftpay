@@ -8,8 +8,8 @@ spring:
     # analytics store is ClickHouse (not Postgres). secrets come from env vars in prod (${ENV:default}).
     url: ${SPRING_DATASOURCE_URL:jdbc:clickhouse://localhost:8123/swiftpay}
     driver-class-name: com.clickhouse.jdbc.ClickHouseDriver
-    username: ${SPRING_DATASOURCE_USERNAME:default}
-    password: ${SPRING_DATASOURCE_PASSWORD:}
+    username: ${SPRING_DATASOURCE_USERNAME:swiftpay}
+    password: ${SPRING_DATASOURCE_PASSWORD:swiftpay}
     hikari:
       connection-test-query: SELECT 1     # ClickHouse-friendly liveness check
   kafka:
