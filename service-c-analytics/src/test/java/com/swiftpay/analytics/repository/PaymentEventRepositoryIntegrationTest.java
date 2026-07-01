@@ -9,8 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.jdbc.DataSourceBuilder;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.wait.strategy.Wait;
+import org.testcontainers.containers.ClickHouseContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
@@ -27,22 +26,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 class PaymentEventRepositoryIntegrationTest {
 
     @Container
-    static GenericContainer<?> clickhouse =
-            new GenericContainer<>(DockerImageName.parse("clickhouse/clickhouse-server:24.8"))
-                    .withExposedPorts(8123)
-                    .waitingFor(Wait.forHttp("/ping").forPort(8123));
+    static ClickHouseContainer clickhouse =
+            new ClickHouseContainer(DockerImageName.parse("clickhouse/clickhouse-server:24.8"));
 
     static JdbcTemplate jdbc;
     static PaymentEventRepository repo;
 
     @BeforeAll
     static void setup() {
-        String url = "jdbc:clickhouse://" + clickhouse.getHost() + ":" + clickhouse.getMappedPort(8123) + "/default";
+        // ClickHouseContainer gives us a matching jdbc url + user + password that actually authenticate.
         DataSource ds = DataSourceBuilder.create()
                 .driverClassName("com.clickhouse.jdbc.ClickHouseDriver")
-                .url(url)
-                .username("default")
-                .password("")
+                .url(clickhouse.getJdbcUrl())
+                .username(clickhouse.getUsername())
+                .password(clickhouse.getPassword())
                 .build();
         jdbc = new JdbcTemplate(ds);
         jdbc.execute("CREATE TABLE payment_events (" +
