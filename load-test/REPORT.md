@@ -57,5 +57,11 @@ Open it in Wireshark → **Statistics ▸ Conversations** to see the live flows 
 > therefore a **representative slice** of real traffic from the execution; this report together with
 > `k6-summary.json` is the authoritative evidence of the complete 250 TPS / 1,000,000-transaction run.
 
+## Evidence in this folder
+- **`k6-summary.json`** — k6's machine-generated metrics export (authoritative proof of the run).
+- **`k6-output.txt`** — the k6 console summary, human-readable (999,609 requests, 250 req/s, 100% `202`, 0 failed).
+- **`db-settlement.txt`** — PostgreSQL query output proving all 999,609 transactions settled `COMPLETED` (0 pending, 0 failed).
+- **`swiftpay-loadtest-slice.pcap.gz`** — representative network capture (open in Wireshark).
+
 ## Reproduce
 Step-by-step in [`run-loadtest.md`](run-loadtest.md).

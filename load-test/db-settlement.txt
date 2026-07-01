@@ -1,0 +1,13 @@
+SwiftPay load test - ledger settlement verification (PostgreSQL)
+Run after the 250 TPS / 1,000,000 load test. Expect: all COMPLETED, 0 PENDING, 0 FAILED.
+--------------------------------------------------------------------------------
+  status   | count  
+-----------+--------
+ COMPLETED | 999609
+(1 row)
+
+ total  | pending | failed 
+--------+---------+--------
+ 999609 |       0 |      0
+(1 row)
+
