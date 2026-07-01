@@ -1,0 +1,25 @@
+SwiftPay load test - k6 console summary
+Executor: constant-arrival-rate 250 req/s ; target 1,000,000 payments ; POST /v1/payments
+Raw machine export: k6-summary.json
+--------------------------------------------------------------------------------
+  █ TOTAL RESULTS 
+    checks_total.......: 999609  249.60518/s
+    checks_succeeded...: 100.00% 999609 out of 999609
+    checks_failed......: 0.00%   0 out of 999609
+    ✓ accepted (202)
+    HTTP
+    http_req_duration..............: avg=21.24ms min=4.71ms med=10.92ms max=4.18s p(90)=31.29ms p(95)=52.58ms
+      { expected_response:true }...: avg=21.24ms min=4.71ms med=10.92ms max=4.18s p(90)=31.29ms p(95)=52.58ms
+    http_req_failed................: 0.00%  0 out of 999609
+    http_reqs......................: 999609 249.60518/s
+    EXECUTION
+    dropped_iterations.............: 392    0.097884/s
+    iteration_duration.............: avg=21.79ms min=5.08ms med=11.41ms max=4.18s p(90)=32.12ms p(95)=53.57ms
+    iterations.....................: 999609 249.60518/s
+    vus............................: 2      min=1           max=263
+    vus_max........................: 272    min=100         max=272
+    NETWORK
+    data_received..................: 226 MB 56 kB/s
+    data_sent......................: 235 MB 59 kB/s
+running (1h06m44.8s), 000/272 VUs, 999609 complete and 0 interrupted iterations
+payments ✓ [ 100% ] 000/272 VUs  1h6m40s  250.00 iters/s
