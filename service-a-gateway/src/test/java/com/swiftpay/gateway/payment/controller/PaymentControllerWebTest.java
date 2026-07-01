@@ -16,7 +16,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-// Verifies the HTTP layer + error handling (validation and malformed bodies map to 400, not 500).
+// tests just the http/web layer (the service is mocked). the main point here is the error handling -
+// bad input should come back as a clean 400, not a 500. this is what i fixed after the swagger test blew up.
 @WebMvcTest(PaymentController.class)
 class PaymentControllerWebTest {
 
@@ -25,6 +26,7 @@ class PaymentControllerWebTest {
 
     @Test
     void validPaymentReturns202() throws Exception {
+        // a proper request should give 202 accepted (we reply straight away, the ledger settles in the background)
         when(service.initiate(any())).thenReturn(new PaymentResponse("P1", TransactionStatus.PENDING, "ok"));
 
         mvc.perform(post("/v1/payments").contentType(MediaType.APPLICATION_JSON)
@@ -35,15 +37,18 @@ class PaymentControllerWebTest {
 
     @Test
     void missingRequiredFieldsReturn400() throws Exception {
+        // only senderId sent, the rest are missing. the @Valid checks should fail and give a 400.
         mvc.perform(post("/v1/payments").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"senderId\":1}"))   // missing receiver / amount / currency -> validation fails
+                        .content("{\"senderId\":1}"))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
-    void malformedBodyReturns400NotS500() throws Exception {
+    void malformedBodyReturns400Not500() throws Exception {
+        // senderId sent as text instead of a number, so jackson cant even parse the json.
+        // before the fix this fell through to the catch-all and returned 500. now it should be a 400.
         mvc.perform(post("/v1/payments").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"senderId\":\"not-a-number\"}"))   // unparseable -> HttpMessageNotReadableException
+                        .content("{\"senderId\":\"not-a-number\"}"))
                 .andExpect(status().isBadRequest());
     }
 }

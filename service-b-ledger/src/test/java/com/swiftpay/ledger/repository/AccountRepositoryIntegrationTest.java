@@ -17,10 +17,12 @@ import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-// Runs the real atomic debit/credit queries against a REAL Postgres (via Testcontainers).
+// the debit/credit are raw sql queries, so mocks cant really test them - i need a real postgres.
+// testcontainers spins up an actual postgres in a container just for this test. it skips itself
+// if docker isnt running (like on my machine), and runs for real on the ci server.
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Testcontainers(disabledWithoutDocker = true)   // runs in CI; skips cleanly where Docker isn't reachable
+@Testcontainers(disabledWithoutDocker = true)
 class AccountRepositoryIntegrationTest {
 
     @Container
@@ -29,7 +31,7 @@ class AccountRepositoryIntegrationTest {
 
     @DynamicPropertySource
     static void props(DynamicPropertyRegistry registry) {
-        // let Hibernate build the schema from the entities for the test (prod uses db/init.sql)
+        // for the test i let hibernate build the tables from the entities. the real app uses db/init.sql instead.
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
     }
 
@@ -38,6 +40,7 @@ class AccountRepositoryIntegrationTest {
 
     @BeforeEach
     void seed() {
+        // start every test with one account: id 1, balance 1000
         em.createNativeQuery("insert into accounts(id, name, balance, currency, updated_at) " +
                 "values (1, 'Alice', 1000.00, 'INR', now())").executeUpdate();
         em.flush();
@@ -46,6 +49,7 @@ class AccountRepositoryIntegrationTest {
 
     @Test
     void debitSucceedsWhenFundsAreSufficient() {
+        // enough money in the account, so the debit should apply (returns 1) and the balance drops by 100
         int rows = accounts.debit(1L, new BigDecimal("100.00"));
         em.flush();
         em.clear();
@@ -56,16 +60,20 @@ class AccountRepositoryIntegrationTest {
 
     @Test
     void debitFailsAndNeverOverdraws() {
-        int rows = accounts.debit(1L, new BigDecimal("5000.00"));   // more than the balance
+        // this is the important one. trying to pull out more than whats in the account.
+        // the "where balance >= amount" in the query should reject it (returns 0) and leave the balance alone.
+        // thats what stops two payments from overdrawing the same account.
+        int rows = accounts.debit(1L, new BigDecimal("5000.00"));
         em.flush();
         em.clear();
 
-        assertThat(rows).isZero();   // the WHERE balance >= amount guard rejected it
+        assertThat(rows).isZero();
         assertThat(accounts.findById(1L).orElseThrow().getBalance()).isEqualByComparingTo("1000.00");
     }
 
     @Test
     void creditIncreasesTheBalance() {
+        // credit just adds money to the receiver, no guard needed. quick sanity check it works.
         int rows = accounts.credit(1L, new BigDecimal("250.00"));
         em.flush();
         em.clear();
