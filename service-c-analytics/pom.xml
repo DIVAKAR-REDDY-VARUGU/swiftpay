@@ -51,6 +51,11 @@
             <artifactId>clickhouse-http-client</artifactId>
             <version>${clickhouse-jdbc.version}</version>
         </dependency>
+        <!-- ClickHouse's http client defaults to Apache HttpClient 5; provide it (brings httpcore5 too) -->
+        <dependency>
+            <groupId>org.apache.httpcomponents.client5</groupId>
+            <artifactId>httpclient5</artifactId>
+        </dependency>
         <!-- Swagger / OpenAPI UI -->
         <dependency>
             <groupId>org.springdoc</groupId>
